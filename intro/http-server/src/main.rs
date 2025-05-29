@@ -5,6 +5,7 @@ use esp_idf_svc::{
     eventloop::EspSystemEventLoop,
     hal::{
         i2c::{I2cConfig, I2cDriver},
+        io::EspIOError,
         prelude::*,
     },
     http::server::{Configuration, EspHttpServer},
@@ -44,26 +45,45 @@ fn main() -> Result<()> {
     )?;
 
     // Initialize temperature sensor
-    let sda = peripherals.pins.gpio10;
-    let scl = peripherals.pins.gpio8;
-    let i2c = peripherals.i2c0;
-    let config = I2cConfig::new().baudrate(100.kHz().into());
-    let i2c = I2cDriver::new(i2c, sda, scl, &config)?;
-    let temp_sensor_main = Arc::new(Mutex::new(shtc3(i2c)));
-    let mut temp_sensor = temp_sensor_main.clone();
-    temp_sensor
-        .lock()
-        .unwrap()
-        .start_measurement(PowerMode::NormalMode)
-        .unwrap();
+    // let sda = peripherals.pins.gpio10;
+    // let scl = peripherals.pins.gpio8;
+    // let i2c = peripherals.i2c0;
+    // let config = I2cConfig::new().baudrate(100.kHz().into());
+    // let i2c = I2cDriver::new(i2c, sda, scl, &config)?;
+    // let temp_sensor_main = Arc::new(Mutex::new(shtc3(i2c)));
+    // let mut temp_sensor = temp_sensor_main.clone();
+    // temp_sensor
+    //     .lock()
+    //     .unwrap()
+    //     .start_measurement(PowerMode::NormalMode)
+    //     .unwrap();
 
     // 1.Create a `EspHttpServer` instance using a default configuration
-    // let mut server = EspHttpServer::new(...)?;
+    let mut server = EspHttpServer::new(&Configuration::default())?;
 
     // 2. Write a handler that returns the index page
-    // server.fn_handler("/", Method::Get, |request| {
-    // ...
-    //})?;
+    server.fn_handler(
+        "/",
+        Method::Get,
+        |request| -> core::result::Result<(), EspIOError> {
+            let html = index_html();
+            let mut response = request.into_ok_response()?;
+            response.write_all(html.as_bytes())?;
+            Ok(())
+        },
+    )?;
+
+    server.fn_handler(
+        "/temperature",
+        Method::Get,
+        move |request| -> core::result::Result<(), EspIOError> {
+            let temp_val = 32.275;
+            let html = temperature(temp_val);
+            let mut response = request.into_ok_response()?;
+            response.write_all(html.as_bytes())?;
+            Ok(())
+        },
+    )?;
 
     // This is not true until you actually create one
     println!("Server awaiting connection");
