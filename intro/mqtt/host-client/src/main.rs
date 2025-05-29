@@ -8,7 +8,7 @@ const UUID: &'static str = get_uuid::uuid();
 #[derive(Debug)]
 #[toml_cfg::toml_config]
 pub struct Config {
-    #[default("localhost")]
+    #[default("test.mosquitto.org")]
     mqtt_host: &'static str,
     #[default("")]
     mqtt_user: &'static str,
@@ -41,7 +41,7 @@ fn main() -> Result<(), Box<dyn Error>> {
             client
                 .publish(color.topic(UUID), QoS::AtLeastOnce, false, color.data())
                 .unwrap();
-            thread::sleep(Duration::from_secs(1));
+            thread::sleep(Duration::from_secs(2));
         }
     });
 

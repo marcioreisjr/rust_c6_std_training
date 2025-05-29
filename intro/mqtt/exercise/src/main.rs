@@ -52,23 +52,22 @@ fn main() -> Result<()> {
         sysloop,
     )?;
 
-    info!("Our UUID is:");
-    info!("{}", UUID);
+    info!("Our UUID is: {}", UUID);
 
     let pins = peripherals.pins;
     let sda = pins.gpio10;
-    let scl = pins.gpio8;
+    let scl = pins.gpio2;
     let i2c = peripherals.i2c0;
     let config = I2cConfig::new().baudrate(100.kHz().into());
-    let i2c = I2cDriver::new(i2c, sda, scl, &config)?;
-    let mut temp_sensor = shtc3(i2c);
-    let mut delay = delay::Ets;
+    let _i2c = I2cDriver::new(i2c, sda, scl, &config)?;
+    // let mut temp_sensor = shtc3(i2c);
+    // let mut delay = delay::Ets;
 
-    let mut led = WS2812RMT::new(pins.gpio2, peripherals.rmt.channel0)?;
+    let mut led = WS2812RMT::new(pins.gpio8, peripherals.rmt.channel0)?;
     led.set_pixel(RGB8::new(1, 1, 0))?;
 
     // Client configuration:
-    let broker_url = if app_config.mqtt_user != "" {
+    let broker_url = if !app_config.mqtt_user.is_empty() {
         format!(
             "mqtt://{}:{}@{}",
             app_config.mqtt_user, app_config.mqtt_pass, app_config.mqtt_host
@@ -76,24 +75,53 @@ fn main() -> Result<()> {
     } else {
         format!("mqtt://{}", app_config.mqtt_host)
     };
-
+    info!("Broker URL: {}", broker_url);
     let mqtt_config = MqttClientConfiguration::default();
 
     // Your Code:
-
     // 1. Create a client with default configuration and empty handler
-    // let mut client = EspMqttClient::new_cb( ... )?;
+    let mut client =
+        EspMqttClient::new_cb(
+            &broker_url,
+            &mqtt_config,
+            move |message_event| match message_event.payload() {
+                Received { data, details, .. } => process_message(data, details, &mut led),
+                Error(e) => warn!("Received error from MQTT: {:?}", e),
+                _ => info!("Received from MQTT: {:?}", message_event.payload()),
+            },
+        )?;
 
-    // 2. publish an empty hello message
-
+    // 2. publish the temperature
+    let payload: &[u8] = &[];
+    let _ = client.publish(&hello_topic(UUID), QoS::AtLeastOnce, true, payload);
+    let _ = client.subscribe(&mqtt_messages::color_topic(UUID), QoS::AtLeastOnce);
     loop {
         sleep(Duration::from_secs(1));
-        let temp = temp_sensor
-            .measure_temperature(PowerMode::NormalMode, &mut delay)
-            .unwrap()
-            .as_degrees_celsius();
+        // let temp = temp_sensor
+        //     .measure_temperature(PowerMode::NormalMode, &mut delay)
+        //     .unwrap()
+        //     .as_degrees_celsius();
+        let temp: f32 = 37.72;
 
         // 3. publish CPU temperature
-        // client.publish( ... )?;
+        client.enqueue(
+            &mqtt_messages::temperature_data_topic(UUID),
+            QoS::AtLeastOnce,
+            false,
+            &temp.to_be_bytes() as &[u8],
+        )?;
+    }
+}
+
+fn process_message(data: &[u8], details: Details, led: &mut WS2812RMT) {
+    if details == Complete {
+        info!("{:?}", data);
+        let message_data: &[u8] = data;
+        if let Ok(ColorData::BoardLed(color)) = ColorData::try_from(message_data) {
+            info!("{}", color);
+            if let Err(e) = led.set_pixel(color) {
+                error!("Could not set board LED: {:?}", e)
+            }
+        }
     }
 }
