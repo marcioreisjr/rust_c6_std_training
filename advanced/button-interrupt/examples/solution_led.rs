@@ -5,7 +5,7 @@ use esp_idf_svc::{
         peripherals::Peripherals,
         task::notification::Notification,
     },
-    sys::esp_random,
+    sys::{esp_random, GPIO},
 };
 use rgb_led::{RGB8, WS2812RMT};
 use std::num::NonZeroU32;

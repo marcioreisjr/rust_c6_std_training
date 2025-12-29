@@ -22,6 +22,7 @@ opt-level = "z"
 
 [dependencies]
 anyhow      = "=1.0.95"
+dht11 = "0.3.1"
 esp-idf-svc = "=0.50.1"
 rgb-led     = { path = "../../common/lib/rgb-led" }
 
